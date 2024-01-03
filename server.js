@@ -1,72 +1,125 @@
-// server.js
 const express = require('express');
 const multer = require('multer');
-const { Pool } = require('pg');
 const cors = require('cors');
+const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path')
+const bcrypt = require('bcrypt');
+const { log } = require('console');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const port = 5000;
 
-app.use(cors());
-
-const pool = new Pool({
-    user: 'postgres',
-    host: 'localhost',
-    database: 'GreetingSystemDB',
-    password: '12345678',
-    port: 5432,
-    charset: 'UTF8',
-});
-
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-app.post('/upload', upload.single('image'), async (req, res) => {
-    try {
-        // Get the folder name from the request body or query parameters
-        const folderName = req.body.folderName || req.query.folderName || 'defaultFolder';
-        const folderPath = `img/${folderName}`;
+app.use(cors());
+app.use(express.json());
 
-        // Check if the folder exists, create it if not
-        if (!fs.existsSync(folderPath)) {
-            fs.mkdirSync(folderPath, { recursive: true });
-        }
-
-        // Get the list of files in the folder
-        const files = fs.readdirSync(folderPath);
-
-        // Calculate the new image name
-        const newImageName = `${files.length + 1}.png`;
-        const imagePath = path.join(folderPath, newImageName);
-
-        fs.writeFileSync(imagePath, req.file.buffer);
-        res.json('Successfully uploaded');
-    } catch (error) {
-        console.error('Error uploading image:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
+const pool = new Pool({
+  user: 'postgres',
+  host: 'localhost',
+  database: 'GreetingSystemDB',
+  password: '12345678',
+  port: 5432,
+  charset: 'UTF8',
 });
 
-app.use('/images', express.static('img'));
+app.post('/register', async (req, res) => {
+  const { username, password, status } = req.body;
 
-app.get('/folders', (req, res) => {
-    try {
-        const imgFolder = 'img';
+  try {
+    // const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Get the list of folders in the 'img' directory
-        const folders = fs.readdirSync(imgFolder, { withFileTypes: true })
-            .filter(dirent => dirent.isDirectory())
-            .map(dirent => dirent.name);
+    const result = await pool.query(
+      'INSERT INTO authentication (username, password, status) VALUES ($1, $2, $3) RETURNING *',
+      [username, password, status]
+    );
 
-        res.json({ folders });
-    } catch (error) {
-        console.error('Error getting folder names:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error during registration:', error);
+    res.status(500).send('Internal Server Error');
+  }
 });
+
+app.post('/login', async (req, res) => {
+  const { username, password } = req.body;
+
+  try {
+    const result = await pool.query('SELECT * FROM authentication WHERE username = $1 AND password = $2', [username, password]);
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ message: 'Invalid username or password' });
+    }
+
+    console.log(result.rows[0].username)
+
+    const token = jwt.sign({ username: username }, 'PeemSecret', { expiresIn: '1h' });
+    
+
+    res.json({ message: 'Login successful' ,token: token });
+  } catch (error) {
+    console.error('Error during login:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// app.use('/getImageFolder', express.static('labels'));
+
+// app.get('/getLabelFolder', (req, res) => {
+//   try {
+//     const folders = fs.readdirSync('labels', { withFileTypes: true })
+//       .filter(dirent => dirent.isDirectory())
+//       .map(dirent => dirent.name);
+
+//     res.json({ folders });
+//   } catch (error) {
+//     console.error('Error getting folder names:', error);
+//     res.status(500).json({ error: 'Internal server error' });
+//   }
+// });
+
+// app.post('/updateImageFolder', upload.single('labels'), async (req, res) => {
+//   try {
+//     const folderName = req.body.folderName || req.query.folderName || 'defaultFolder';
+//     const folderPath = `labels/${folderName}`;
+//     if (!fs.existsSync(folderPath)) {
+//       fs.mkdirSync(folderPath, { recursive: true });
+//     }
+//     const files = fs.readdirSync(folderPath);
+//     const newImageName = `${files.length + 1}.png`;
+//     const imagePath = path.join(folderPath, newImageName);
+//     fs.writeFileSync(imagePath, req.file.buffer);
+//     res.json('Successfully uploaded');
+//   } catch (error) {
+//     console.error('Error uploading image:', error);
+//     res.status(500).json({ error: 'Internal server error' });
+//   }
+// });
+
+// app.get('/getTodo', async (req, res) => {
+//   try {
+//     const result = await pool.query('SELECT * FROM todo');
+//     res.json(result.rows);
+//   } catch (error) {
+//     console.error('Error:', error);
+//     res.status(500).json({ error: 'Internal Server Error' });
+//   }
+// });
+
+// app.post('/addTodo', async (req, res) => {
+//   const { no, list } = req.body;
+//   try {
+//     const result = await pool.query('INSERT INTO todo (no, list) VALUES ($1, $2) RETURNING *', [no, list]);
+//     res.json(result.rows[0]);
+//   } catch (error) {
+//     console.error('Error:', error);
+//     res.status(500).json({ error: 'Internal Server Error' });
+//   }
+// });
 
 app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
+  console.log(`Server is running on port ${port}`);
 });
