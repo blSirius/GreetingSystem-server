@@ -7,9 +7,6 @@ const path = require('path')
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
-
-const secretKey = 'PeemSecert';
-
 const app = express();
 const port = 5000;
 
@@ -19,7 +16,9 @@ const upload = multer({ storage: storage });
 app.use(cors());
 app.use(express.json());
 
+const secretKey = 'PeemSecert';
 
+//db connect
 const pool = new Pool({
   user: 'postgres',
   host: 'localhost',
@@ -34,7 +33,6 @@ app.post('/register', async (req, res) => {
 
   try {
     // const hashedPassword = await bcrypt.hash(password, 10);
-
     const result = await pool.query(
       'INSERT INTO authentication (username, password, status) VALUES ($1, $2, $3) RETURNING *',
       [username, password, status]
@@ -57,18 +55,34 @@ app.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid username or password' });
     }
 
-    console.log(result.rows[0].username)
-
     const token = jwt.sign({ username: username }, secretKey, { expiresIn: '1h' });
-    
 
-    res.json({ message: 'Login successful' ,token: token });
+    res.json({ message: 'Login successful', token: token });
   } catch (error) {
     console.error('Error during login:', error);
     res.status(500).send('Internal Server Error');
   }
 });
 
+app.post('/decodeToken', (req, res) => {
+  const { token } = req.body;
+
+  if (!token) {
+    return res.status(400).json({ error: 'Token not provided' });
+  }
+
+  jwt.verify(token, secretKey, (err, decoded) => {
+    if (err) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+    res.json({ message: 'decoded success', decoded: decoded });
+  });
+});
+
+
+
+
+//folder api
 app.use('/getImageFolder', express.static('labels'));
 
 app.get('/getLabelFolder', (req, res) => {
@@ -103,26 +117,6 @@ app.post('/updateImageFolder', upload.single('labels'), async (req, res) => {
 });
 
 
-
-
-
-app.post('/decode-token', (req, res) => {
-  const { token } = req.body;
-
-  if (!token) {
-    return res.status(400).json({ error: 'Token not provided' });
-  }
-
-  jwt.verify(token, secretKey, (err, decoded) => {
-    if (err) {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
-
-    console.log('decoded: ',decoded)
-
-    res.json({ message: 'decoded success' ,decoded: decoded });
-  });
-});
 
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
