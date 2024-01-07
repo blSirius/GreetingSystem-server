@@ -18,7 +18,7 @@ app.use(express.json());
 
 const secretKey = 'PeemSecert';
 
-//db connect aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+//db connect
 const pool = new Pool({
   user: 'postgres',
   host: 'localhost',
