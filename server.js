@@ -79,9 +79,6 @@ app.post('/decodeToken', (req, res) => {
   });
 });
 
-
-
-
 //folder api
 app.use('/getImageFolder', express.static('labels'));
 
@@ -115,8 +112,6 @@ app.post('/updateImageFolder', upload.single('labels'), async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
-
 
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
